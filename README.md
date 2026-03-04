@@ -198,46 +198,58 @@ Card + Shoe Models
 ---
 
 # Project Structure
-app
-│
-├── core
-│ └── game
-│ ├── Card.kt
-│ ├── Shoe.kt
-│ ├── DeckBuilder.kt
-│ └── HandLogic.kt
-│
-├── navigation
-│ └── NavGraph.kt
-│
-├── ui
-│ ├── screens
-│ │ ├── auth
-│ │ │ ├── LoginScreen.kt
-│ │ │ └── SignUpScreen.kt
-│ │ │
-│ │ ├── home
-│ │ │ └── HomeScreen.kt
-│ │ │
-│ │ ├── game
-│ │ │ ├── GameModeScreen.kt
-│ │ │ └── GameScreen.kt
-│ │ │
-│ │ ├── dashboard
-│ │ │ ├── DashboardScreen.kt
-│ │ │ └── ShoeDetailScreen.kt
-│ │ │
-│ │ ├── account
-│ │ │ └── AccountScreen.kt
-│ │ │
-│ │ └── info
-│ │ └── InfoScreen.kt
-│
-│ └── viewmodel
-│ └── GameViewModel.kt
-│
-└── MainActivity.kt
 
+```
+app
+|
+|-- core
+|   |
+|   |-- game
+|       |-- Card.kt
+|       |-- Shoe.kt
+|       |-- DeckBuilder.kt
+|       |-- HandLogic.kt
+|
+|-- navigation
+|   |
+|   |-- NavGraph.kt
+|
+|-- ui
+|   |
+|   |-- screens
+|   |   |
+|   |   |-- auth
+|   |   |   |-- LoginScreen.kt
+|   |   |   |-- SignUpScreen.kt
+|   |   |
+|   |   |-- home
+|   |   |   |-- HomeScreen.kt
+|   |   |
+|   |   |-- game
+|   |   |   |-- GameModeScreen.kt
+|   |   |   |-- GameScreen.kt
+|   |   |
+|   |   |-- dashboard
+|   |   |   |-- DashboardScreen.kt
+|   |   |   |-- ShoeDetailScreen.kt
+|   |   |
+|   |   |-- account
+|   |   |   |-- AccountScreen.kt
+|   |   |
+|   |   |-- info
+|   |       |-- InfoScreen.kt
+|   |
+|   |-- viewmodel
+|       |-- GameViewModel.kt
+|
+|-- MainActivity.kt
+```
+### Key Directories
+
+- **core/game** – Blackjack engine and card logic  
+- **ui/screens** – All Jetpack Compose UI screens  
+- **ui/viewmodel** – Application state and game logic  
+- **navigation** – Compose navigation graph  
 ---
 
 # Technologies Used
