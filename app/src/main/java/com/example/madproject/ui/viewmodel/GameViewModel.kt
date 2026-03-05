@@ -1,12 +1,17 @@
 package com.example.madproject.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.madproject.core.game.*
+import com.example.madproject.data.local.entities.HandEntity
+import com.example.madproject.data.repo.HandRepository
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import com.example.madproject.core.game.*
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.collectLatest
 
 enum class HandPhase { READY, PLAYER_TURN, FINISHED }
 
@@ -22,26 +27,36 @@ data class GameUiState(
     val dealerCards: List<Card> = emptyList(),
     val playerCards: List<Card> = emptyList(),
     val message: String = "Select a mode and press Deal",
-    val phase: HandPhase = HandPhase.READY,
-    val dashboard: List<DashboardItem> = emptyList()
+    val phase: HandPhase = HandPhase.READY
 )
 
-class GameViewModel : ViewModel() {
+class GameViewModel(
+    private val handRepository: HandRepository
+) : ViewModel() {
 
+    // ----- Dashboard filters -----
+    private val filterMode = MutableStateFlow<String?>(null) // null = ALL
+    private val sortAscending = MutableStateFlow(false)
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val lastHands = combine(filterMode, sortAscending) { m: String?, asc: Boolean -> m to asc }
+        .flatMapLatest { (m, asc) -> handRepository.observeHands(m, asc, 20) }
+
+    fun setFilterMode(mode: String?) { filterMode.value = mode }
+    fun setSortAscending(asc: Boolean) { sortAscending.value = asc }
+
+    // ----- Game state -----
     private val _state = MutableStateFlow(GameUiState())
     val state: StateFlow<GameUiState> = _state
 
     private var shoe: Shoe? = null
-    private var nextId = 1L
 
-    private fun nowLabel(): String =
-        SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(Date())
-
+    // ----- Mode selection -----
     fun selectMode(mode: String) {
         val (decks, cutMin, cutMax) = when (mode) {
             "BEGINNER" -> Triple(1, 0.60, 0.80)
             "INTERMEDIATE" -> Triple(6, 0.70, 0.80)
-            "ADVANCED" -> Triple(8, 0.70, 0.80) // still hi-lo today, omega later
+            "ADVANCED" -> Triple(8, 0.70, 0.80)
             else -> Triple(1, 0.60, 0.80)
         }
 
@@ -71,11 +86,14 @@ class GameViewModel : ViewModel() {
         _state.value = s.copy(bet = (s.bet + 5).coerceAtMost(s.balance.coerceAtLeast(5)))
     }
 
+    // ----- Core game actions -----
     fun deal() {
         val s = _state.value
-        if (shoe == null) shoe = newShuffledShoe(s.decks, s.cutMin, s.cutMax)
-        if (shoe!!.pastCut()) {
+
+        if (shoe == null) {
             shoe = newShuffledShoe(s.decks, s.cutMin, s.cutMax)
+        } else if (shoe!!.pastCut()) {
+            shoe!!.reshuffle(s.cutMin, s.cutMax)
             _state.value = _state.value.copy(runningCount = 0)
         }
 
@@ -98,9 +116,7 @@ class GameViewModel : ViewModel() {
         )
 
         val playerTotal = handTotal(player)
-        val isBlackjack = playerTotal == 21 // since player is always 2 cards here
-
-        if (isBlackjack) {
+        if (playerTotal == 21) {
             finishHand(
                 result = "BLACKJACK",
                 message = "Blackjack! Pays 3:2",
@@ -119,6 +135,7 @@ class GameViewModel : ViewModel() {
         if (currentTotal >= 21) return
 
         val card = sh.draw().also { adjustCount(it) }
+
         val newPlayer = s.playerCards + card
         val total = handTotal(newPlayer)
 
@@ -126,7 +143,7 @@ class GameViewModel : ViewModel() {
             finishHand(
                 result = "LOSE",
                 message = "Bust ($total)! You lose.",
-                finalDealer = s.dealerCards, // dealer stays hidden-ish for now
+                finalDealer = s.dealerCards,
                 finalPlayer = newPlayer
             )
         } else {
@@ -169,27 +186,47 @@ class GameViewModel : ViewModel() {
         )
     }
 
-    private fun finishHand(result: String, message: String, finalDealer: List<Card>, finalPlayer: List<Card>) {
+    private fun finishHand(
+        result: String,
+        message: String,
+        finalDealer: List<Card>,
+        finalPlayer: List<Card>
+    ) {
         val s = _state.value
+
         val delta = when (result) {
             "WIN" -> s.bet
             "LOSE" -> -s.bet
-            "BLACKJACK" -> (s.bet * 3) / 2   // 3:2 payout
+            "BLACKJACK" -> (s.bet * 3) / 2
             else -> 0
         }
 
         var newBalance = s.balance + delta
         if (newBalance <= 0) newBalance = 100
 
-        val item = DashboardItem(
-            id = nextId++,
-            timeLabel = nowLabel(),
-            mode = s.selectedMode,
-            result = result,
-            runningCount = s.runningCount,
-            bet = s.bet,
-            balanceAfter = newBalance
-        )
+        val pt = handTotal(finalPlayer)
+        val dt = handTotal(finalDealer)
+
+        shoe?.discard(finalPlayer + finalDealer)
+
+        // Persist hand
+        viewModelScope.launch {
+            handRepository.insertHand(
+                HandEntity(
+                    playedAtEpochMs = System.currentTimeMillis(),
+                    mode = s.selectedMode,
+                    bet = s.bet,
+                    result = result,
+                    playerTotal = pt,
+                    dealerTotal = dt,
+                    runningCount = s.runningCount,
+                    trueCount = null,
+                    decks = s.decks,
+                    cardsRemaining = shoe?.remainingCount(),
+                    balanceAfter = newBalance
+                )
+            )
+        }
 
         _state.value = s.copy(
             balance = newBalance,
@@ -197,7 +234,6 @@ class GameViewModel : ViewModel() {
             playerCards = finalPlayer,
             phase = HandPhase.FINISHED,
             message = message,
-            dashboard = (listOf(item) + s.dashboard).take(20),
             shoeLabel = shoeProgress()
         )
     }
@@ -210,5 +246,31 @@ class GameViewModel : ViewModel() {
     private fun shoeProgress(): String {
         val sh = shoe ?: return ""
         return "Shoe: dealt ${sh.dealtCount}/${52 * sh.decks} | cut @ ${sh.cutIndex}"
+    }
+
+    fun clearHistory() {
+        viewModelScope.launch {
+            handRepository.clearAllHands()
+        }
+    }
+
+    private var restoredFromDb = false
+
+    init {
+        viewModelScope.launch {
+            lastHands.collectLatest { hands: List<HandEntity> ->
+                if (restoredFromDb) return@collectLatest
+                val mostRecent = hands.firstOrNull() ?: return@collectLatest
+                restoredFromDb = true
+
+                _state.value = _state.value.copy(
+                    selectedMode = mostRecent.mode,
+                    bet = mostRecent.bet,
+                    runningCount = mostRecent.runningCount,
+                    balance = mostRecent.balanceAfter,
+                    decks = mostRecent.decks ?: _state.value.decks
+                )
+            }
+        }
     }
 }
