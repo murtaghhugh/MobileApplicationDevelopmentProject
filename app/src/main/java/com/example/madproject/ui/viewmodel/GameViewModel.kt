@@ -12,6 +12,11 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
+import com.example.madproject.data.local.entities.ShoeStateEntity
+import com.example.madproject.core.game.cardsFromCsv
+import com.example.madproject.core.game.cardsToCsv
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 enum class HandPhase { READY, PLAYER_TURN, FINISHED }
 
@@ -53,37 +58,46 @@ class GameViewModel(
 
     // ----- Mode selection -----
     fun selectMode(mode: String) {
-        val (decks, cutMin, cutMax) = when (mode) {
-            "BEGINNER" -> Triple(1, 0.60, 0.80)
-            "INTERMEDIATE" -> Triple(6, 0.70, 0.80)
-            "ADVANCED" -> Triple(8, 0.70, 0.80)
-            else -> Triple(1, 0.60, 0.80)
+        viewModelScope.launch {
+            val restored = restoreModeFromDb(mode)
+            if (restored) return@launch
+
+            val (decks, cutMin, cutMax) = when (mode) {
+                "BEGINNER" -> Triple(1, 0.60, 0.80)
+                "INTERMEDIATE" -> Triple(6, 0.70, 0.80)
+                "ADVANCED" -> Triple(8, 0.70, 0.80)
+                else -> Triple(1, 0.60, 0.80)
+            }
+
+            shoe = newShuffledShoe(decks, cutMin, cutMax)
+
+            _state.value = _state.value.copy(
+                selectedMode = mode,
+                decks = decks,
+                cutMin = cutMin,
+                cutMax = cutMax,
+                runningCount = 0,
+                dealerCards = emptyList(),
+                playerCards = emptyList(),
+                phase = HandPhase.READY,
+                message = "Mode set: $mode. Press Deal.",
+                shoeLabel = shoeProgress()
+            )
+
+            persistSnapshot()
         }
-
-        shoe = newShuffledShoe(decks, cutMin, cutMax)
-
-        _state.value = _state.value.copy(
-            selectedMode = mode,
-            decks = decks,
-            cutMin = cutMin,
-            cutMax = cutMax,
-            runningCount = 0,
-            dealerCards = emptyList(),
-            playerCards = emptyList(),
-            phase = HandPhase.READY,
-            message = "Mode set: $mode. Press Deal.",
-            shoeLabel = shoeProgress()
-        )
     }
 
     fun betMinus5() {
         val s = _state.value
         _state.value = s.copy(bet = (s.bet - 5).coerceAtLeast(5))
+        viewModelScope.launch { persistSnapshot() }
     }
 
     fun betPlus5() {
         val s = _state.value
         _state.value = s.copy(bet = (s.bet + 5).coerceAtMost(s.balance.coerceAtLeast(5)))
+        viewModelScope.launch { persistSnapshot() }
     }
 
     // ----- Core game actions -----
@@ -114,6 +128,8 @@ class GameViewModel(
             message = "Your turn: Hit or Stand",
             shoeLabel = shoeProgress()
         )
+
+        viewModelScope.launch { persistSnapshot() }
 
         val playerTotal = handTotal(player)
         if (playerTotal == 21) {
@@ -154,6 +170,8 @@ class GameViewModel(
                 shoeLabel = shoeProgress()
             )
         }
+
+        viewModelScope.launch { persistSnapshot() }
     }
 
     fun stand() {
@@ -209,7 +227,17 @@ class GameViewModel(
 
         shoe?.discard(finalPlayer + finalDealer)
 
-        // Persist hand
+        _state.value = s.copy(
+            balance = newBalance,
+            dealerCards = finalDealer,
+            playerCards = finalPlayer,
+            phase = HandPhase.FINISHED,
+            message = message,
+            shoeLabel = shoeProgress()
+        )
+
+        viewModelScope.launch { persistSnapshot() }
+
         viewModelScope.launch {
             handRepository.insertHand(
                 HandEntity(
@@ -219,7 +247,7 @@ class GameViewModel(
                     result = result,
                     playerTotal = pt,
                     dealerTotal = dt,
-                    runningCount = s.runningCount,
+                    runningCount = _state.value.runningCount,
                     trueCount = null,
                     decks = s.decks,
                     cardsRemaining = shoe?.remainingCount(),
@@ -227,15 +255,6 @@ class GameViewModel(
                 )
             )
         }
-
-        _state.value = s.copy(
-            balance = newBalance,
-            dealerCards = finalDealer,
-            playerCards = finalPlayer,
-            phase = HandPhase.FINISHED,
-            message = message,
-            shoeLabel = shoeProgress()
-        )
     }
 
     private fun adjustCount(card: Card) {
@@ -250,27 +269,88 @@ class GameViewModel(
 
     fun clearHistory() {
         viewModelScope.launch {
-            handRepository.clearAllHands()
+            handRepository.clearAllGameData()
+            shoe = null
+            _state.value = GameUiState()
         }
     }
 
-    private var restoredFromDb = false
+    private suspend fun persistSnapshot() {
+        val sh = shoe ?: return
+        val s = _state.value
+
+        withContext(Dispatchers.IO) {
+            handRepository.saveShoeState(
+                ShoeStateEntity(
+                    selectedMode = s.selectedMode,
+                    decks = sh.decks,
+                    cutMin = s.cutMin,
+                    cutMax = s.cutMax,
+                    balance = s.balance,
+                    bet = s.bet,
+                    runningCount = s.runningCount,
+                    cutIndex = sh.cutIndex,
+                    dealtCount = sh.dealtCount,
+                    cardsCsv = cardsToCsv(sh.cards),
+                    discardsCsv = cardsToCsv(sh.discards),
+                    playerCardsCsv = cardsToCsv(s.playerCards),
+                    dealerCardsCsv = cardsToCsv(s.dealerCards),
+                    phase = s.phase.name,
+                    message = s.message
+                )
+            )
+        }
+    }
+
+    fun persistOnAppBackground() {
+        viewModelScope.launch {
+            persistSnapshot()
+        }
+    }
+
+
+    private suspend fun restoreModeFromDb(mode: String): Boolean {
+        val savedShoe = handRepository.getShoeState(mode) ?: return false
+
+        shoe = Shoe(
+            decks = savedShoe.decks,
+            cards = cardsFromCsv(savedShoe.cardsCsv),
+            cutIndex = savedShoe.cutIndex,
+            discards = cardsFromCsv(savedShoe.discardsCsv),
+            dealtCount = savedShoe.dealtCount
+        )
+
+        _state.value = GameUiState(
+            selectedMode = savedShoe.selectedMode,
+            decks = savedShoe.decks,
+            cutMin = savedShoe.cutMin,
+            cutMax = savedShoe.cutMax,
+            balance = savedShoe.balance,
+            bet = savedShoe.bet,
+            runningCount = savedShoe.runningCount,
+            shoeLabel = shoeProgress(),
+            dealerCards = cardsFromCsv(savedShoe.dealerCardsCsv),
+            playerCards = cardsFromCsv(savedShoe.playerCardsCsv),
+            message = "Continuing saved ${savedShoe.selectedMode} game.",
+            phase = HandPhase.valueOf(savedShoe.phase)
+        )
+
+        return true
+    }
+
+    private suspend fun restoreLastKnownBalanceAndBet() {
+        val mostRecentHand = handRepository.getMostRecentHand()
+        if (mostRecentHand != null) {
+            _state.value = _state.value.copy(
+                bet = mostRecentHand.bet,
+                balance = mostRecentHand.balanceAfter
+            )
+        }
+    }
 
     init {
         viewModelScope.launch {
-            lastHands.collectLatest { hands: List<HandEntity> ->
-                if (restoredFromDb) return@collectLatest
-                val mostRecent = hands.firstOrNull() ?: return@collectLatest
-                restoredFromDb = true
-
-                _state.value = _state.value.copy(
-                    selectedMode = mostRecent.mode,
-                    bet = mostRecent.bet,
-                    runningCount = mostRecent.runningCount,
-                    balance = mostRecent.balanceAfter,
-                    decks = mostRecent.decks ?: _state.value.decks
-                )
-            }
+            restoreLastKnownBalanceAndBet()
         }
     }
 }

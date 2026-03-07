@@ -2,6 +2,7 @@ package com.example.madproject.data.repo
 
 import com.example.madproject.data.local.db.BlackjackDatabase
 import com.example.madproject.data.local.entities.HandEntity
+import com.example.madproject.data.local.entities.ShoeStateEntity
 import kotlinx.coroutines.flow.Flow
 
 class HandRepository(
@@ -25,5 +26,23 @@ class HandRepository(
 
     suspend fun getMostRecentHand(): HandEntity? {
         return db.handDao().getMostRecentHand()
+    }
+
+    // --- shoe state ---
+    suspend fun getShoeState(mode: String): ShoeStateEntity? {
+        return db.shoeStateDao().get(mode)
+    }
+
+    suspend fun saveShoeState(state: ShoeStateEntity) {
+        db.shoeStateDao().upsert(state)
+    }
+
+    suspend fun clearShoeState(mode: String) {
+        db.shoeStateDao().clearMode(mode)
+    }
+
+    suspend fun clearAllGameData() {
+        db.handDao().clearAllHands()
+        db.shoeStateDao().clear()
     }
 }

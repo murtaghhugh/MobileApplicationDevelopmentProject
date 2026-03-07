@@ -31,7 +31,6 @@ class MainActivity : ComponentActivity() {
                 ) {
                     val navController = rememberNavController()
 
-                    // IMPORTANT: use the Activity VM, do NOT create a new one in Compose
                     AppNavGraph(
                         navController = navController,
                         gameViewModel = vm
@@ -39,5 +38,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        vm.persistOnAppBackground()
     }
 }

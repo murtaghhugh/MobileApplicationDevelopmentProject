@@ -63,7 +63,7 @@ fun AppNavGraph(
 
         composable(Routes.DASHBOARD) {
             DashboardScreen(
-                vm = gameViewModel,
+                gameViewModel = gameViewModel,
                 onBack = { navController.popBackStack() }
             )
         }

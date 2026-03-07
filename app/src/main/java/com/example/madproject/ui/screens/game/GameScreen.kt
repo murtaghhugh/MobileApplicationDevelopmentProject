@@ -33,7 +33,7 @@
         Column(Modifier.fillMaxSize().padding(16.dp)) {
             Text("Game", style = MaterialTheme.typography.headlineMedium)
             Spacer(Modifier.height(8.dp))
-            Text("Mode: $mode")
+            Text("Mode: ${s.selectedMode}")
             Text("Balance: ${s.balance}    Bet: ${s.bet}")
             Text("Hi-Lo Count: ${s.runningCount}")
             if (s.shoeLabel.isNotBlank()) Text(s.shoeLabel)
