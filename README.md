@@ -1,19 +1,31 @@
-# MobileApplicationDevelopmentProject
-
 # Blackjack Card Counting Trainer
-Android | Kotlin | Jetpack Compose | MVVM
+**Android | Kotlin | Jetpack Compose | Room | Supabase | MVVM**
 
-A **blackjack training application** built using **Kotlin and Jetpack Compose** that simulates casino blackjack while teaching users **card counting techniques**.
+A **Blackjack training application** built using **Kotlin and Jetpack Compose** that simulates casino blackjack while teaching users **card counting techniques**.
 
-The application includes multiple game modes with different deck sizes, running card counts, adjustable betting, and a dashboard of recent gameplay results.
+The application includes:
 
-This project demonstrates modern Android architecture practices including:
+- Multiple game modes with different deck sizes  
+- Running card counts and true counts  
+- Adjustable betting system  
+- Persistent gameplay history using Room  
+- Cloud metric export using Supabase  
+- Integration with the **Context of the Code (COTC)** data pipeline  
 
-- Jetpack Compose UI
-- MVVM architecture
-- StateFlow reactive state management
-- Compose Navigation
-- ViewModel-driven game engine
+---
+
+# Project Purpose
+
+This project was developed for the **Mobile Application Development module**.
+
+The aim is to demonstrate:
+
+- Modern Android architecture
+- Reactive UI design with Compose
+- Persistent local storage
+- Cloud database integration
+- Multi-screen navigation
+- Clean architecture and separation of concerns
 
 ---
 
@@ -21,15 +33,21 @@ This project demonstrates modern Android architecture practices including:
 
 ## Blackjack Gameplay
 
-- European-style blackjack
+- European-style blackjack simulation
 - Player receives **two cards**
 - Dealer receives **one visible card**
-- Player actions:
-  - Deal
-  - Hit
-  - Stand
 
-### Dealer Rules
+### Player Actions
+
+| Action | Description |
+|------|-------------|
+| Deal | Start a new hand |
+| Hit | Take another card |
+| Stand | End the player's turn |
+
+---
+
+## Dealer Rules
 
 | Rule | Behaviour |
 |-----|-----------|
@@ -46,72 +64,10 @@ This project demonstrates modern Android architecture practices including:
 | Blackjack detection | On initial deal |
 | Blackjack payout | **3:2** |
 
-Example payout:
+Example Payout:
 Bet: 10
 Blackjack payout: +15
----
 
-# Betting System
-
-| Feature | Behaviour |
-|-------|-----------|
-| Starting balance | 100 |
-| Minimum bet | 5 |
-| Adjust bet | +5 / -5 |
-| Win | Balance increases |
-| Loss | Balance decreases |
-| Bankrupt | Balance resets to 100 |
-
----
-
-# Card Counting
-
-The game uses the **Hi-Lo card counting system**.
-
-| Card | Count Value |
-|------|-------------|
-| 2–6 | +1 |
-| 7–9 | 0 |
-| 10–Ace | -1 |
-
-The **running count updates automatically** as cards are dealt.
-
----
-
-# Game Modes
-
-| Mode | Decks | Shuffle Depth |
-|------|------|---------------|
-| Beginner | 1 deck | 60–80% |
-| Intermediate | 6 decks | 70–80% |
-| Advanced | 8 decks | 70–80% |
-
-Each mode simulates a casino **shoe with a cut card**.
-
----
-
-# Dashboard
-
-The dashboard displays the **last 20 hands played**.
-
-Each record includes:
-
-- Timestamp
-- Game mode
-- Result (Win / Lose / Push / Blackjack)
-- Running count
-- Bet size
-- Balance after hand
-
-Currently the dashboard is stored **in memory using StateFlow**.
-
-Future versions will persist this data using **Room Database**.
-
----
-
-# Architecture
-
-The application follows **MVVM architecture**.
 
 ---
 
@@ -130,7 +86,7 @@ The application follows **MVVM architecture**.
 
 # Card Counting
 
-The game uses the **Hi-Lo card counting system**.
+The game implements the **Hi-Lo card counting system**.
 
 | Card | Count Value |
 |------|-------------|
@@ -138,7 +94,45 @@ The game uses the **Hi-Lo card counting system**.
 | 7–9 | 0 |
 | 10–Ace | -1 |
 
-The **running count updates automatically** as cards are dealt.
+### Running Count
+
+The running count automatically updates as cards are dealt.
+
+### True Count
+
+---
+
+# Betting System
+
+| Feature | Behaviour |
+|-------|-----------|
+| Starting balance | 100 |
+| Minimum bet | 5 |
+| Adjust bet | +5 / -5 |
+| Win | Balance increases |
+| Loss | Balance decreases |
+| Bankrupt | Balance resets to 100 |
+
+---
+
+# Card Counting
+
+The game implements the **Hi-Lo card counting system**.
+
+| Card | Count Value |
+|------|-------------|
+| 2–6 | +1 |
+| 7–9 | 0 |
+| 10–Ace | -1 |
+
+### Running Count
+
+The running count automatically updates as cards are dealt.
+
+### True Count
+True Count = Running Count / Remaining Decks 
+
+The true count adjusts the running count based on the number of decks remaining in the shoe.
 
 ---
 
@@ -150,26 +144,260 @@ The **running count updates automatically** as cards are dealt.
 | Intermediate | 6 decks | 70–80% |
 | Advanced | 8 decks | 70–80% |
 
-Each mode simulates a casino **shoe with a cut card**.
+Each mode simulates a **casino multi-deck shoe with a cut card**.
 
 ---
 
 # Dashboard
 
-The dashboard displays the **last 20 hands played**.
+The dashboard displays the **most recent blackjack hands played**.
 
 Each record includes:
 
 - Timestamp
 - Game mode
 - Result (Win / Lose / Push / Blackjack)
+- Player total
+- Dealer total
 - Running count
+- True count
 - Bet size
 - Balance after hand
 
-Currently the dashboard is stored **in memory using StateFlow**.
+Data automatically updates using **Flow / StateFlow**.
 
-Future versions will persist this data using **Room Database**.
+---
+
+# Local Persistence (Room Database)
+
+The application uses **Room Database** for persistent storage.
+
+## Tables
+
+### `hands`
+
+Stores completed blackjack hands.
+
+| Field | Description |
+|------|-------------|
+| playedAtEpochMs | Hand completion time |
+| mode | Game mode |
+| bet | Bet amount |
+| result | Hand outcome |
+| playerTotal | Player score |
+| dealerTotal | Dealer score |
+| runningCount | Running card count |
+| trueCount | True count value |
+| decks | Number of decks |
+| cardsRemaining | Remaining cards |
+| balanceAfter | Player balance |
+
+---
+
+### `shoe_state`
+
+Stores the **current game state**, allowing the app to resume after restart.
+
+Includes:
+
+- deck configuration
+- running count
+- current balance
+- current bet
+- remaining cards
+- player cards
+- dealer cards
+- game phase
+
+---
+
+# Cloud Metrics (Supabase)
+
+Gameplay metrics are exported to **Supabase**.
+
+Each completed hand uploads multiple **metric events**.
+
+## Metrics captured
+
+| Metric | Description |
+|------|-------------|
+| balance | Player balance after hand |
+| bet_amount | Bet size |
+| running_count | Running card count |
+| true_count | Calculated true count |
+| win_rate | Player win percentage |
+| mode_code | Game mode identifier |
+| shoe_number | Current shoe number |
+| player_total | Player hand total |
+| dealer_total | Dealer hand total |
+| outcome_code | Win / Lose / Push / Blackjack |
+
+### Metadata stored
+
+- `user_id`
+- `device_id`
+- `session_id`
+- `hand_id`
+- `recorded_at`
+
+---
+
+# Authentication
+
+User accounts are managed using **Supabase Authentication**.
+
+Features include:
+
+- User sign-up
+- User login
+- Authenticated metric storage
+- Row Level Security (RLS)
+
+---
+
+# COTC Integration
+
+This application acts as a **mobile data producer** for the **Context of the Code (COTC)** project.
+
+### Data Flow
+
+The true count adjusts the running count based on the number of decks remaining in the shoe.
+
+---
+
+# Game Modes
+
+| Mode | Decks | Shuffle Depth |
+|------|------|---------------|
+| Beginner | 1 deck | 60–80% |
+| Intermediate | 6 decks | 70–80% |
+| Advanced | 8 decks | 70–80% |
+
+Each mode simulates a **casino multi-deck shoe with a cut card**.
+
+---
+
+# 📊 Dashboard
+
+The dashboard displays the **most recent blackjack hands played**.
+
+Each record includes:
+
+- Timestamp
+- Game mode
+- Result (Win / Lose / Push / Blackjack)
+- Player total
+- Dealer total
+- Running count
+- True count
+- Bet size
+- Balance after hand
+
+Data automatically updates using **Flow / StateFlow**.
+
+---
+
+# Local Persistence (Room Database)
+
+The application uses **Room Database** for persistent storage.
+
+## Tables
+
+### `hands`
+
+Stores completed blackjack hands.
+
+| Field | Description |
+|------|-------------|
+| playedAtEpochMs | Hand completion time |
+| mode | Game mode |
+| bet | Bet amount |
+| result | Hand outcome |
+| playerTotal | Player score |
+| dealerTotal | Dealer score |
+| runningCount | Running card count |
+| trueCount | True count value |
+| decks | Number of decks |
+| cardsRemaining | Remaining cards |
+| balanceAfter | Player balance |
+
+---
+
+### `shoe_state`
+
+Stores the **current game state**, allowing the app to resume after restart.
+
+Includes:
+
+- deck configuration
+- running count
+- current balance
+- current bet
+- remaining cards
+- player cards
+- dealer cards
+- game phase
+
+---
+
+# Cloud Metrics (Supabase)
+
+Gameplay metrics are exported to **Supabase**.
+
+Each completed hand uploads multiple **metric events**.
+
+## Metrics captured
+
+| Metric | Description |
+|------|-------------|
+| balance | Player balance after hand |
+| bet_amount | Bet size |
+| running_count | Running card count |
+| true_count | Calculated true count |
+| win_rate | Player win percentage |
+| mode_code | Game mode identifier |
+| shoe_number | Current shoe number |
+| player_total | Player hand total |
+| dealer_total | Dealer hand total |
+| outcome_code | Win / Lose / Push / Blackjack |
+
+### Metadata stored
+
+- `user_id`
+- `device_id`
+- `session_id`
+- `hand_id`
+- `recorded_at`
+
+---
+
+# Authentication
+
+User accounts are managed using **Supabase Authentication**.
+
+Features include:
+
+- User sign-up
+- User login
+- Authenticated metric storage
+- Row Level Security (RLS)
+
+---
+
+# COTC Integration
+
+This application acts as a **mobile data producer** for the **Context of the Code (COTC)** project.
+
+### Data Flow
+Mobile App
+↓
+App Supabase Metrics Table
+↓
+COTC Data Collector
+↓
+COTC Processing Pipeline
+
+The mobile app produces structured gameplay metrics which are collected and processed by the **COTC system**.
 
 ---
 
@@ -179,77 +407,69 @@ The application follows **MVVM architecture**.
 UI (Jetpack Compose Screens)
 │
 ▼
-GameViewModel
+ViewModel (GameViewModel)
 │
 ▼
-Game Engine
+Repositories
 │
 ▼
-Card + Shoe Models
+Local Database (Room)
+Cloud Database (Supabase)
 
-### Responsibilities
+### Layer Responsibilities
 
 | Layer | Responsibility |
 |------|---------------|
 | UI | Displays game state |
-| ViewModel | Game state and business logic |
-| Game Engine | Card logic and blackjack rules |
+| ViewModel | Game logic and state management |
+| Repository | Data abstraction layer |
+| Local Data | Room database storage |
+| Cloud Data | Supabase metric export |
 
 ---
 
 # Project Structure
-
-```
 app
-|
-|-- core
-|   |
-|   |-- game
-|       |-- Card.kt
-|       |-- Shoe.kt
-|       |-- DeckBuilder.kt
-|       |-- HandLogic.kt
-|
-|-- navigation
-|   |
-|   |-- NavGraph.kt
-|
-|-- ui
-|   |
-|   |-- screens
-|   |   |
-|   |   |-- auth
-|   |   |   |-- LoginScreen.kt
-|   |   |   |-- SignUpScreen.kt
-|   |   |
-|   |   |-- home
-|   |   |   |-- HomeScreen.kt
-|   |   |
-|   |   |-- game
-|   |   |   |-- GameModeScreen.kt
-|   |   |   |-- GameScreen.kt
-|   |   |
-|   |   |-- dashboard
-|   |   |   |-- DashboardScreen.kt
-|   |   |   |-- ShoeDetailScreen.kt
-|   |   |
-|   |   |-- account
-|   |   |   |-- AccountScreen.kt
-|   |   |
-|   |   |-- info
-|   |       |-- InfoScreen.kt
-|   |
-|   |-- viewmodel
-|       |-- GameViewModel.kt
-|
-|-- MainActivity.kt
-```
-### Key Directories
+│
+├── core
+│ └── game
+│ ├── Card.kt
+│ ├── Shoe.kt
+│ ├── DeckBuilder.kt
+│ └── HandLogic.kt
+│
+├── data
+│ ├── local
+│ │ ├── db
+│ │ ├── dao
+│ │ └── entities
+│ │
+│ ├── remote
+│ │ ├── auth
+│ │ └── mapper
+│ │
+│ ├── repo
+│ │ ├── HandRepository.kt
+│ │ └── MetricsRepository.kt
+│ │
+│ └── session
+│
+├── navigation
+│ └── NavGraph.kt
+│
+├── ui
+│ ├── screens
+│ │ ├── auth
+│ │ ├── game
+│ │ ├── dashboard
+│ │ ├── account
+│ │ └── info
+│ │
+│ └── viewmodel
+│ └── GameViewModel.kt
+│
+└── MainActivity.kt
 
-- **core/game** – Blackjack engine and card logic  
-- **ui/screens** – All Jetpack Compose UI screens  
-- **ui/viewmodel** – Application state and game logic  
-- **navigation** – Compose navigation graph  
 ---
 
 # Technologies Used
@@ -259,51 +479,50 @@ app
 | Kotlin | Programming language |
 | Jetpack Compose | UI framework |
 | Android ViewModel | State management |
-| Kotlin StateFlow | Reactive data updates |
+| Kotlin Coroutines | Concurrency |
+| StateFlow | Reactive UI updates |
 | Compose Navigation | Screen navigation |
+| Room | Local persistence |
+| Supabase | Cloud database & authentication |
 | MVVM | Architecture pattern |
 
 ---
 
 # Current Status
 
-The **MVP gameplay loop is complete**.
+Core systems currently implemented:
 
-Working features include:
-
-- Blackjack game engine
-- Multi-deck shoe system
+- Blackjack gameplay engine
+- Multi-deck shoe simulation
 - Hi-Lo card counting
-- Adjustable betting
-- Running balance
-- Blackjack detection and payout
-- Dashboard history
-- Navigation between screens
+- True count calculation
+- Adjustable betting system
+- Persistent gameplay history
+- Room database integration
+- Supabase authentication
+- Supabase metric export
+- Compose navigation
+- Dashboard UI
+- Session and device tracking
 
 ---
 
-# Roadmap
+# Planned Improvements
 
-## Persistence
-- Room Database for sessions
-- Store full shoe statistics
-- Long-term dashboard history
-
-## Gameplay
+### Gameplay
 - Double Down
 - Split hands
 - Insurance option
-- True count calculation
 
-## UI Improvements
+### UI Improvements
 - Graphical playing cards
-- Betting popup interface
-- Animations
-- Improved layout
+- Game animations
+- Improved layout and theme
 
-## Cloud Features
-- Sync stats with Supabase or Firebase
-- Multi-device gameplay tracking
+### Additional Features
+- Tips & strategy training section
+- Player statistics dashboard
+- Account information screen
 
 ---
 
@@ -311,12 +530,73 @@ Working features include:
 
 ### Clone the repository
 
-```bash
+---
+
+# 🛠 Technologies Used
+
+| Technology | Purpose |
+|-----------|--------|
+| Kotlin | Programming language |
+| Jetpack Compose | UI framework |
+| Android ViewModel | State management |
+| Kotlin Coroutines | Concurrency |
+| StateFlow | Reactive UI updates |
+| Compose Navigation | Screen navigation |
+| Room | Local persistence |
+| Supabase | Cloud database & authentication |
+| MVVM | Architecture pattern |
+
+---
+
+# Current Status
+
+Core systems currently implemented:
+
+- Blackjack gameplay engine
+- Multi-deck shoe simulation
+- Hi-Lo card counting
+- True count calculation
+- Adjustable betting system
+- Persistent gameplay history
+- Room database integration
+- Supabase authentication
+- Supabase metric export
+- Compose navigation
+- Dashboard UI
+- Session and device tracking
+
+---
+
+# Planned Improvements
+
+### Gameplay
+- Double Down
+- Split hands
+- Insurance option
+
+### UI Improvements
+- Graphical playing cards
+- Game animations
+- Improved layout and theme
+
+### Additional Features
+- Tips & strategy training section
+- Player statistics dashboard
+- Account information screen
+
+---
+
+# Setup Instructions
+
+### Clone the repository
 git clone https://github.com/yourusername/blackjack-card-counter.git
-Open in Android Studio
 
-Open the project using Android Studio Hedgehog or newer.
+### Open in Android Studio
 
-Run the application
+Open the project using **Android Studio Hedgehog or newer**.
+
+### Run the application
 Run → app
 
+
+Example payout:
