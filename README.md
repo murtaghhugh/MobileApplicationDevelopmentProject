@@ -278,7 +278,7 @@ Each mode simulates a **casino multi-deck shoe with a cut card**.
 
 ---
 
-# 📊 Dashboard
+# Dashboard
 
 The dashboard displays the **most recent blackjack hands played**.
 
@@ -533,7 +533,7 @@ Core systems currently implemented:
 
 ---
 
-# 🛠 Technologies Used
+# Technologies Used
 
 | Technology | Purpose |
 |-----------|--------|
