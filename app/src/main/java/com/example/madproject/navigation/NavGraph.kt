@@ -16,39 +16,44 @@ import com.example.madproject.ui.screens.game.GameScreen
 import com.example.madproject.ui.screens.home.HomeScreen
 import com.example.madproject.ui.screens.info.InfoScreen
 import com.example.madproject.ui.viewmodel.GameViewModel
+import com.example.madproject.ui.viewmodel.AuthViewModel
 
 @Composable
 fun AppNavGraph(
     navController: NavHostController,
     gameViewModel: GameViewModel,
-    startDestination: String = Routes.LOGIN
+    authViewModel: AuthViewModel
 ) {
     NavHost(
         navController = navController,
-        startDestination = startDestination
+        startDestination = Routes.LOGIN
+//        startDestination = Routes.HOME
     ) {
         composable(Routes.LOGIN) {
             LoginScreen(
+                authViewModel = authViewModel,
                 onLoginSuccess = {
-                    // Prevent going back to Login after login
                     navController.navigate(Routes.HOME) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
-                        launchSingleTop = true
                     }
                 },
-                onGoToRegister = { navController.navigate(Routes.SIGNUP) }
+                onGoToRegister = {
+                    navController.navigate(Routes.SIGNUP)
+                }
             )
         }
 
         composable(Routes.SIGNUP) {
             SignUpScreen(
+                authViewModel = authViewModel,
                 onRegisterSuccess = {
                     navController.navigate(Routes.HOME) {
                         popUpTo(Routes.LOGIN) { inclusive = true }
-                        launchSingleTop = true
                     }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = {
+                    navController.popBackStack()
+                }
             )
         }
 

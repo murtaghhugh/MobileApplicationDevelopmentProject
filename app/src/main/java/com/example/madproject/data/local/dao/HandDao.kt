@@ -43,4 +43,7 @@ interface HandDao {
         LIMIT 1
     """)
     suspend fun getMostRecentHand(): HandEntity?
+
+    @Query("SELECT * FROM hands ORDER BY playedAtEpochMs DESC LIMIT :limit")
+    suspend fun getRecentHandsList(limit: Int): List<HandEntity>
 }

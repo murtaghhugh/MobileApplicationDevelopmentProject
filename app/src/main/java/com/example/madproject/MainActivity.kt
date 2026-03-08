@@ -13,12 +13,26 @@ import com.example.madproject.navigation.AppNavGraph
 import com.example.madproject.ui.theme.MADProjectTheme
 import com.example.madproject.ui.viewmodel.GameViewModel
 import com.example.madproject.ui.viewmodel.GameViewModelFactory
+import com.example.madproject.ui.viewmodel.AuthViewModel
+import com.example.madproject.ui.viewmodel.AuthViewModelFactory
+import com.example.madproject.data.remote.auth.AuthRepository
 
 class MainActivity : ComponentActivity() {
 
     private val vm: GameViewModel by viewModels {
         val app = application as MadProjectApp
-        GameViewModelFactory(app.handRepository)
+        GameViewModelFactory(
+            handRepository = app.handRepository,
+            authRepository = app.authRepository,
+            metricsRepository = app.metricsRepository,
+            deviceIdProvider = app.deviceIdProvider,
+            sessionManager = app.sessionManager
+        )
+    }
+
+    private val authViewModel: AuthViewModel by viewModels {
+        val app = application as MadProjectApp
+        AuthViewModelFactory(app.authRepository)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -33,7 +47,8 @@ class MainActivity : ComponentActivity() {
 
                     AppNavGraph(
                         navController = navController,
-                        gameViewModel = vm
+                        gameViewModel = vm,
+                        authViewModel = authViewModel
                     )
                 }
             }

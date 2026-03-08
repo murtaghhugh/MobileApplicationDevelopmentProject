@@ -10,7 +10,7 @@ import com.example.madproject.data.local.entities.ShoeStateEntity
 @Database(
     entities = [HandEntity::class, ShoeStateEntity::class],
     version = 5,
-    exportSchema = true
+    exportSchema = false
 )
 abstract class BlackjackDatabase : RoomDatabase() {
     abstract fun handDao(): HandDao

@@ -14,6 +14,7 @@ data class ShoeStateEntity(
     val balance: Int,
     val bet: Int,
     val runningCount: Int,
+    val shoeNumber: Int = 1,
 
     val cutIndex: Int,
     val dealtCount: Int,

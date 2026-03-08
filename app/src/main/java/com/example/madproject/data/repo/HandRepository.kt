@@ -41,6 +41,10 @@ class HandRepository(
         db.shoeStateDao().clearMode(mode)
     }
 
+    suspend fun getRecentHandsList(limit: Int): List<HandEntity> {
+        return db.handDao().getRecentHandsList(limit)
+    }
+
     suspend fun clearAllGameData() {
         db.handDao().clearAllHands()
         db.shoeStateDao().clear()

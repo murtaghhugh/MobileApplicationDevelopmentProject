@@ -17,6 +17,15 @@ import com.example.madproject.core.game.cardsFromCsv
 import com.example.madproject.core.game.cardsToCsv
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.madproject.data.local.DeviceIdProvider
+import com.example.madproject.data.remote.mapper.HandMetricsSnapshot
+import com.example.madproject.data.remote.mapper.MetricsBuilder
+import com.example.madproject.data.remote.auth.AuthRepository
+import com.example.madproject.data.repo.MetricsRepository
+import com.example.madproject.data.session.SessionManager
+import com.example.madproject.domain.mapper.toModeCode
+import com.example.madproject.domain.mapper.toOutcomeCode
+import java.util.UUID
 
 enum class HandPhase { READY, PLAYER_TURN, FINISHED }
 
@@ -29,6 +38,7 @@ data class GameUiState(
     val bet: Int = 5,
     val runningCount: Int = 0,
     val shoeLabel: String = "",
+    val shoeNumber: Int = 1,
     val dealerCards: List<Card> = emptyList(),
     val playerCards: List<Card> = emptyList(),
     val message: String = "Select a mode and press Deal",
@@ -36,7 +46,11 @@ data class GameUiState(
 )
 
 class GameViewModel(
-    private val handRepository: HandRepository
+    private val handRepository: HandRepository,
+    private val authRepository: AuthRepository,
+    private val metricsRepository: MetricsRepository,
+    private val deviceIdProvider: DeviceIdProvider,
+    private val sessionManager: SessionManager
 ) : ViewModel() {
 
     // ----- Dashboard filters -----
@@ -77,6 +91,7 @@ class GameViewModel(
                 cutMin = cutMin,
                 cutMax = cutMax,
                 runningCount = 0,
+                shoeNumber = 1,
                 dealerCards = emptyList(),
                 playerCards = emptyList(),
                 phase = HandPhase.READY,
@@ -108,7 +123,10 @@ class GameViewModel(
             shoe = newShuffledShoe(s.decks, s.cutMin, s.cutMax)
         } else if (shoe!!.pastCut()) {
             shoe!!.reshuffle(s.cutMin, s.cutMax)
-            _state.value = _state.value.copy(runningCount = 0)
+            _state.value = _state.value.copy(
+                runningCount = 0,
+                shoeNumber = _state.value.shoeNumber + 1
+            )
         }
 
         val sh = shoe!!
@@ -248,11 +266,18 @@ class GameViewModel(
                     playerTotal = pt,
                     dealerTotal = dt,
                     runningCount = _state.value.runningCount,
-                    trueCount = null,
+                    trueCount = calculateTrueCount(),
                     decks = s.decks,
                     cardsRemaining = shoe?.remainingCount(),
                     balanceAfter = newBalance
                 )
+            )
+
+            uploadHandMetrics(
+                result = result,
+                playerTotal = pt,
+                dealerTotal = dt,
+                balanceAfter = newBalance
             )
         }
     }
@@ -289,6 +314,7 @@ class GameViewModel(
                     balance = s.balance,
                     bet = s.bet,
                     runningCount = s.runningCount,
+                    shoeNumber = s.shoeNumber,
                     cutIndex = sh.cutIndex,
                     dealtCount = sh.dealtCount,
                     cardsCsv = cardsToCsv(sh.cards),
@@ -328,6 +354,7 @@ class GameViewModel(
             balance = savedShoe.balance,
             bet = savedShoe.bet,
             runningCount = savedShoe.runningCount,
+            shoeNumber = savedShoe.shoeNumber,
             shoeLabel = shoeProgress(),
             dealerCards = cardsFromCsv(savedShoe.dealerCardsCsv),
             playerCards = cardsFromCsv(savedShoe.playerCardsCsv),
@@ -346,6 +373,67 @@ class GameViewModel(
                 balance = mostRecentHand.balanceAfter
             )
         }
+    }
+
+    private suspend fun uploadHandMetrics(
+        result: String,
+        playerTotal: Int,
+        dealerTotal: Int,
+        balanceAfter: Int
+    ) {
+        val userId = authRepository.currentUserId() ?: return
+
+        val handId = UUID.randomUUID().toString()
+
+        val recentHands = handRepository.getRecentHandsList(limit = 100)
+        val completedHands = recentHands.count {
+            it.result == "WIN" || it.result == "LOSE" || it.result == "PUSH" || it.result == "BLACKJACK"
+        } + 1
+
+        val wins = recentHands.count {
+            it.result == "WIN" || it.result == "BLACKJACK"
+        } + if (result == "WIN" || result == "BLACKJACK") 1 else 0
+
+        val rawWinRate = if (completedHands == 0) 0.0
+        else (wins.toDouble() / completedHands.toDouble()) * 100.0
+
+        val winRate = kotlin.math.round(rawWinRate * 100) / 100.0
+
+        val trueCountValue = calculateTrueCount()
+
+        val snapshot = HandMetricsSnapshot(
+            userId = userId,
+            deviceId = deviceIdProvider.getDeviceId(),
+            sessionId = sessionManager.getSessionId(),
+            handId = handId,
+            balance = balanceAfter.toDouble(),
+            betAmount = _state.value.bet.toDouble(),
+            runningCount = _state.value.runningCount.toDouble(),
+            trueCount = trueCountValue,
+            winRate = winRate,
+            modeCode = _state.value.selectedMode.toModeCode(),
+            shoeNumber = _state.value.shoeNumber.toDouble(),
+            playerTotal = playerTotal.toDouble(),
+            dealerTotal = dealerTotal.toDouble(),
+            outcomeCode = result.toOutcomeCode()
+        )
+
+        val metrics = MetricsBuilder.build(snapshot)
+        android.util.Log.d(
+            "METRICS_UPLOAD",
+            "Uploading handId=$handId sessionId=${sessionManager.getSessionId()} result=$result metrics=${metrics.size}"
+        )
+
+        metricsRepository.uploadMetrics(metrics)
+    }
+
+    private fun calculateTrueCount(): Double {
+        val sh = shoe ?: return 0.0
+        val remainingDecks = sh.remainingCount().toDouble() / 52.0
+        if (remainingDecks <= 0.0) return 0.0
+
+        val rawTrueCount = _state.value.runningCount.toDouble() / remainingDecks
+        return kotlin.math.round(rawTrueCount * 100) / 100.0
     }
 
     init {
