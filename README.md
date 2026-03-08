@@ -99,6 +99,7 @@ The game implements the **Hi-Lo card counting system**.
 The running count automatically updates as cards are dealt.
 
 ### True Count
+True Count = Running Count / Remaining Decks
 
 ---
 
