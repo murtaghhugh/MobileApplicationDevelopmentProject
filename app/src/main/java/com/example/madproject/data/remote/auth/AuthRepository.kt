@@ -1,3 +1,4 @@
+// AI-assisted: signup validation fix
 package com.example.madproject.data.remote.auth
 
 import com.example.madproject.data.remote.SupabaseProvider
@@ -30,6 +31,17 @@ class AuthRepository {
         password: String
     ): Result<Unit> {
         return runCatching {
+            val existingUsernames = supabase.postgrest["profiles"]
+                .select {
+                    filter {
+                        eq("username", username)
+                    }
+                }
+                .decodeList<Profile>()
+            if (existingUsernames.isNotEmpty()) {
+                error("This username is already taken. Please choose another.")
+            }
+
             supabase.auth.signUpWith(Email) {
                 this.email = email
                 this.password = password

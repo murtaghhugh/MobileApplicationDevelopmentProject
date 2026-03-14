@@ -1,3 +1,4 @@
+// AI-assisted: UI improvements
 package com.example.madproject.ui.screens.rules
 
 import androidx.compose.foundation.BorderStroke
@@ -22,7 +23,7 @@ import com.example.madproject.ui.components.CasinoScreen
 import com.example.madproject.ui.theme.BorderLight
 import com.example.madproject.ui.theme.CardSurface
 import com.example.madproject.ui.theme.TextPrimary
-import com.example.madproject.ui.theme.TextSecondary
+import com.example.madproject.ui.theme.TextOnGreen
 
 @Composable
 fun RulesScreen(onBack: () -> Unit) {
@@ -80,7 +81,7 @@ private fun RuleLine(text: String) {
     Text(
         text = "• $text",
         style = MaterialTheme.typography.bodyLarge,
-        color = TextSecondary,
+        color = TextOnGreen,
         modifier = Modifier.padding(vertical = 4.dp)
     )
 }

@@ -1,3 +1,4 @@
+// AI-assisted: UI cleanup
 package com.example.madproject.ui.screens.home
 
 import androidx.compose.foundation.layout.Arrangement
@@ -22,8 +23,8 @@ import com.example.madproject.ui.components.CasinoScreen
 import com.example.madproject.ui.theme.CardSurface
 import com.example.madproject.ui.theme.GoldAccent
 import com.example.madproject.ui.theme.TextDark
+import com.example.madproject.ui.theme.TextOnGreen
 import com.example.madproject.ui.theme.TextPrimary
-import com.example.madproject.ui.theme.TextSecondary
 
 @Composable
 fun HomeScreen(
@@ -51,7 +52,7 @@ fun HomeScreen(
             Text(
                 text = "Practice blackjack, test card counting, and review your sessions.",
                 style = MaterialTheme.typography.bodyLarge,
-                color = TextSecondary
+                color = TextOnGreen
             )
 
             Spacer(Modifier.height(24.dp))

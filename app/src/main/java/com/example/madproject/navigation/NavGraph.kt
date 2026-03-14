@@ -1,4 +1,4 @@
-// AI-assisted development note:
+// AI-assisted: UI cleanup
 // Initial guidance for structuring the Jetpack Compose Navigation graph
 // (including parameter passing for game mode and session IDs) was obtained
 // using ChatGPT. The navigation structure, routes, and screen integration
@@ -16,7 +16,6 @@ import com.example.madproject.ui.screens.account.AccountScreen
 import com.example.madproject.ui.screens.auth.LoginScreen
 import com.example.madproject.ui.screens.auth.SignUpScreen
 import com.example.madproject.ui.screens.dashboard.DashboardScreen
-import com.example.madproject.ui.screens.dashboard.ShoeDetailScreen
 import com.example.madproject.ui.screens.game.GameModeScreen
 import com.example.madproject.ui.screens.game.GameScreen
 import com.example.madproject.ui.screens.home.HomeScreen
@@ -77,20 +76,6 @@ fun AppNavGraph(
         composable(Routes.DASHBOARD) {
             DashboardScreen(
                 gameViewModel = gameViewModel,
-                onBack = { navController.popBackStack() }
-            )
-        }
-
-        composable(route = Routes.SHOE_DETAIL,
-            arguments = listOf(
-                navArgument(NavArgs.SESSION_ID) { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val sessionId = backStackEntry.arguments?.getLong(NavArgs.SESSION_ID)
-                ?: error("Missing sessionId")
-
-            ShoeDetailScreen(
-                sessionId = sessionId,
                 onBack = { navController.popBackStack() }
             )
         }

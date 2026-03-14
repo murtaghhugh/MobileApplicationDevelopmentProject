@@ -1,3 +1,4 @@
+// AI-assisted: UI improvements
 package com.example.madproject.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
@@ -45,9 +46,13 @@ class AuthViewModel(
             _uiState.value = if (result.isSuccess) {
                 AuthUiState(success = true)
             } else {
-                AuthUiState(
-                    error = result.exceptionOrNull()?.message ?: "Sign up failed"
-                )
+                val raw = result.exceptionOrNull()?.message ?: "Sign up failed"
+                val error = if (raw.contains("already registered", ignoreCase = true)) {
+                    "An account with this email already exists. Please log in instead."
+                } else if (raw.contains("duplicate key", ignoreCase = true) || raw.contains("unique constraint", ignoreCase = true)) {
+                    "This username is already taken. Please choose another."
+                } else raw
+                AuthUiState(error = error)
             }
         }
     }
