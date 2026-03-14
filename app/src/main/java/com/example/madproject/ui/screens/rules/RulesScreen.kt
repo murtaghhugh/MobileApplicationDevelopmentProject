@@ -53,10 +53,11 @@ fun RulesScreen(onBack: () -> Unit) {
                     RuleLine("Dealer hits until at least 17")
                     RuleLine("Split is allowed on matching ranks")
                     RuleLine("Double down gives one card only")
+                    RuleLine("Insurance gives 50% bet back, Only if Opted in For")
                     RuleLine("If bankroll hits 0, it resets to 100")
-                    RuleLine("Beginner = 1 deck Hi-Lo")
-                    RuleLine("Intermediate = 6 deck Hi-Lo")
-                    RuleLine("Advanced = 8 deck Omega II")
+                    RuleLine("Beginner = 1 deck shoe - Hi-Lo")
+                    RuleLine("Intermediate = 6 deck shoe-  Hi-Lo")
+                    RuleLine("Advanced = 8 deck shoe - Omega II")
                 }
             }
 

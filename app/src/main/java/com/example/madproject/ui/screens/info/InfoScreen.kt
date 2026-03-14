@@ -50,6 +50,16 @@ fun InfoScreen(onBack: () -> Unit) {
             title = "Deck Estimation",
             description = "Useful for converting running count into true count.",
             url = "https://www.blackjackapprenticeship.com/bja-guide-to-deck-estimation/"
+        ),
+        LinkItem(
+            title = "Blackjack Hi-Lo Card Counting",
+            description = "Overview of Hi-Lo Card Counting Strategy",
+            url = "https://www.qfit.com/cardcounting/Hi-Lo/"
+        ),
+        LinkItem(
+            title = "Blackjack Omega II Card Counting",
+            description = "Overview of Omega II Card Counting Strategy",
+            url = "https://www.qfit.com/cardcounting/Omega-II/"
         )
     )
 
@@ -71,7 +81,7 @@ fun InfoScreen(onBack: () -> Unit) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        Text("Tips & Resources", style = MaterialTheme.typography.headlineMedium)
+        Text("Tips & Tricks", style = MaterialTheme.typography.headlineMedium)
         Spacer(Modifier.height(12.dp))
 
         LazyColumn(

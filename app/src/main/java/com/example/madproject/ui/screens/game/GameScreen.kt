@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -36,6 +38,7 @@ fun GameScreen(
     onBack: () -> Unit
 ) {
     val s by vm.state.collectAsState()
+    val scrollState = rememberScrollState()
 
     val countSystem =
         when (s.selectedMode.lowercase()) {
@@ -68,6 +71,12 @@ fun GameScreen(
 
     val bettingEnabled = s.phase == HandPhase.READY || s.phase == HandPhase.FINISHED
 
+    val showInsuranceButtons =
+        s.phase == HandPhase.INSURANCE_DECISION && s.insuranceOffered && !s.insuranceTaken
+
+    val activeHandBet =
+        s.handBets.getOrElse(s.activeHandIndex) { s.baseBet }
+
     val primaryButtonColors = ButtonDefaults.buttonColors(
         disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
         disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -76,6 +85,7 @@ fun GameScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
         Text("Game", style = MaterialTheme.typography.headlineMedium)
@@ -158,26 +168,63 @@ fun GameScreen(
         Spacer(Modifier.height(8.dp))
         Text(s.message)
 
+        if (showInsuranceButtons) {
+            Spacer(Modifier.height(16.dp))
+
+            Text(
+                text = "Dealer shows an Ace. Take insurance?",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = vm::takeInsurance,
+                    modifier = Modifier.weight(1f),
+                    colors = primaryButtonColors
+                ) {
+                    Text("Take Insurance")
+                }
+
+                OutlinedButton(
+                    onClick = vm::skipInsurance,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Skip Insurance")
+                }
+            }
+        }
+
         Spacer(Modifier.height(16.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             OutlinedButton(
                 onClick = vm::betMinus5,
-                enabled = bettingEnabled
+                enabled = bettingEnabled,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("-5")
             }
 
             OutlinedButton(
                 onClick = vm::betPlus5,
-                enabled = bettingEnabled
+                enabled = bettingEnabled,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("+5")
             }
 
             OutlinedButton(
                 onClick = vm::betTimesTwo,
-                enabled = bettingEnabled
+                enabled = bettingEnabled,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("x2")
             }
@@ -185,17 +232,22 @@ fun GameScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             OutlinedButton(
                 onClick = vm::betAllIn,
-                enabled = bettingEnabled
+                enabled = bettingEnabled,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("All In")
             }
 
             OutlinedButton(
                 onClick = vm::undoLastBetMove,
-                enabled = bettingEnabled && s.previousBaseBet != null
+                enabled = bettingEnabled && s.previousBaseBet != null,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Undo")
             }
@@ -203,11 +255,15 @@ fun GameScreen(
 
         Spacer(Modifier.height(12.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(
                 onClick = vm::deal,
                 enabled = s.phase == HandPhase.READY || s.phase == HandPhase.FINISHED,
-                colors = primaryButtonColors
+                colors = primaryButtonColors,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Deal")
             }
@@ -215,7 +271,8 @@ fun GameScreen(
             Button(
                 onClick = vm::hit,
                 enabled = s.phase == HandPhase.PLAYER_TURN && activePlayerTotal < 21,
-                colors = primaryButtonColors
+                colors = primaryButtonColors,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Hit")
             }
@@ -223,7 +280,8 @@ fun GameScreen(
             Button(
                 onClick = vm::stand,
                 enabled = s.phase == HandPhase.PLAYER_TURN,
-                colors = primaryButtonColors
+                colors = primaryButtonColors,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Stand")
             }
@@ -231,13 +289,17 @@ fun GameScreen(
 
         Spacer(Modifier.height(8.dp))
 
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             Button(
                 onClick = vm::doubleDown,
                 enabled = s.phase == HandPhase.PLAYER_TURN &&
                         s.canDoubleDown &&
-                        s.balance >= s.bet,
-                colors = primaryButtonColors
+                        s.balance >= activeHandBet,
+                colors = primaryButtonColors,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Double")
             }
@@ -245,7 +307,8 @@ fun GameScreen(
             Button(
                 onClick = vm::split,
                 enabled = s.phase == HandPhase.PLAYER_TURN && s.canSplit,
-                colors = primaryButtonColors
+                colors = primaryButtonColors,
+                modifier = Modifier.weight(1f)
             ) {
                 Text("Split")
             }
@@ -259,5 +322,7 @@ fun GameScreen(
         ) {
             Text("Back")
         }
+
+        Spacer(Modifier.height(12.dp))
     }
 }
