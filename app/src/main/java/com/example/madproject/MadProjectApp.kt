@@ -1,7 +1,9 @@
+// AI-assisted: WorkManager scaffolding and constraint configuration
 package com.example.madproject
 
 import android.app.Application
 import com.example.madproject.data.local.DeviceIdProvider
+import com.example.madproject.data.local.dao.PendingUploadDao
 import com.example.madproject.data.local.db.BlackjackDatabase
 import com.example.madproject.data.local.di.DatabaseModule
 import com.example.madproject.data.remote.SupabaseProvider
@@ -18,8 +20,10 @@ class MadProjectApp : Application() {
 
     val authRepository: AuthRepository by lazy { AuthRepository() }
 
+    val pendingUploadDao: PendingUploadDao by lazy { database.pendingUploadDao() }
+
     val metricsRepository: MetricsRepository by lazy {
-        MetricsRepository(SupabaseProvider.client)
+        MetricsRepository(SupabaseProvider.client, this, pendingUploadDao)
     }
 
     val deviceIdProvider: DeviceIdProvider by lazy { DeviceIdProvider(this) }
