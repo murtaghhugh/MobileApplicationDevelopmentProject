@@ -1,3 +1,8 @@
+// AI-assisted development note:
+// AI tools were used to assist with debugging coroutine state updates and
+// structuring reactive state flows within the ViewModel. The final game logic,
+// card counting behaviour, and state management were implemented and tested by the developer.
+
 package com.example.madproject.ui.viewmodel
 
 import androidx.lifecycle.ViewModel

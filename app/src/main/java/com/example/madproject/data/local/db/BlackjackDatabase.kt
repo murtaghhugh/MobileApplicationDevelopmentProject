@@ -1,4 +1,8 @@
-// AI-assisted: WorkManager scaffolding and constraint configuration
+// AI-assisted development note:
+// AI tools were consulted for guidance on structuring the Room database layer,
+// including DAO usage and repository patterns. The schema, queries, and data
+// flow were implemented and verified by the developer.
+
 package com.example.madproject.data.local.db
 
 import androidx.room.Database

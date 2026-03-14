@@ -1,3 +1,9 @@
+// AI-assisted development note:
+// Initial guidance for structuring the Jetpack Compose Navigation graph
+// (including parameter passing for game mode and session IDs) was obtained
+// using ChatGPT. The navigation structure, routes, and screen integration
+// were reviewed, modified, and implemented by the developer.
+
 package com.example.madproject.navigation
 
 import androidx.compose.runtime.Composable

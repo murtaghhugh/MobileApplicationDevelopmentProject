@@ -1,3 +1,8 @@
+// AI-assisted development note:
+// Assistance from ChatGPT was used when designing the data mapping structure
+// used to convert gameplay metrics into uploadable objects. The final mapping
+// logic and schema alignment were implemented and verified by the developer.
+
 package com.example.madproject.data.remote.mapper
 
 import com.example.madproject.data.remote.model.MetricEvent

@@ -1,4 +1,9 @@
-// AI-assisted: WorkManager scaffolding and constraint configuration
+// AI-assisted development note:
+// Initial implementation ideas for background retry logic using Android
+// WorkManager were explored with assistance from ChatGPT. The final worker,
+// retry policy, and integration with the repository layer were implemented
+// and tested by the developer.
+
 package com.example.madproject.data.worker
 
 import android.content.Context

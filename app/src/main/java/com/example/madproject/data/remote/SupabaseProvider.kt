@@ -1,4 +1,8 @@
 package com.example.madproject.data.remote
+// AI-assisted development note:
+// AI tools were used to assist with configuring the Supabase client and
+// debugging authentication setup. The final integration with the application
+// architecture and secure configuration of environment variables were completed by the developer.
 
 import com.example.madproject.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
