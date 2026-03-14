@@ -10,7 +10,9 @@ import kotlinx.coroutines.launch
 data class AuthUiState(
     val isLoading: Boolean = false,
     val success: Boolean = false,
-    val error: String? = null
+    val error: String? = null,
+    val username: String = "",
+    val email: String = ""
 )
 
 class AuthViewModel(
@@ -52,6 +54,30 @@ class AuthViewModel(
 
     fun resetState() {
         _uiState.value = AuthUiState()
+    }
+
+    fun loadProfile() {
+        viewModelScope.launch {
+            val result = authRepository.getProfile()
+            _uiState.value = if (result.isSuccess) {
+                val profile = result.getOrThrow()
+                _uiState.value.copy(
+                    username = profile.username,
+                    email = profile.email
+                )
+            } else {
+                _uiState.value.copy(
+                    error = result.exceptionOrNull()?.message ?: "Failed to load profile"
+                )
+            }
+        }
+    }
+
+    fun signOut(onDone: () -> Unit) {
+        viewModelScope.launch {
+            authRepository.signOut()
+            onDone()
+        }
     }
 
     fun currentUserId(): String? = authRepository.currentUserId()

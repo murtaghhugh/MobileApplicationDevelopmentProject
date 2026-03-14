@@ -11,6 +11,7 @@ object Routes {
     const val GAME_MODE = "game_mode"
     const val GAME = "game/{mode}"
     fun game(mode: String) = "game/$mode"
+    const val RULES = "rules"
 
     const val SHOE_DETAIL = "shoe_detail/{sessionId}"
     fun shoeDetail(sessionId: Long) = "shoe_detail/$sessionId"

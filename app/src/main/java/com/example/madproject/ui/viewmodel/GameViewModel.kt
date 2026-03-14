@@ -2,31 +2,35 @@ package com.example.madproject.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.madproject.core.game.*
-import com.example.madproject.data.local.entities.HandEntity
-import com.example.madproject.data.repo.HandRepository
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.launch
-import com.example.madproject.data.local.entities.ShoeStateEntity
+import com.example.madproject.core.game.Card
+import com.example.madproject.core.game.Shoe
 import com.example.madproject.core.game.cardsFromCsv
 import com.example.madproject.core.game.cardsToCsv
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import com.example.madproject.core.game.handTotal
+import com.example.madproject.core.game.newShuffledShoe
 import com.example.madproject.data.local.DeviceIdProvider
+import com.example.madproject.data.local.entities.HandEntity
+import com.example.madproject.data.local.entities.ShoeStateEntity
+import com.example.madproject.data.remote.auth.AuthRepository
 import com.example.madproject.data.remote.mapper.HandMetricsSnapshot
 import com.example.madproject.data.remote.mapper.MetricsBuilder
-import com.example.madproject.data.remote.auth.AuthRepository
+import com.example.madproject.data.repo.HandRepository
 import com.example.madproject.data.repo.MetricsRepository
 import com.example.madproject.data.session.SessionManager
 import com.example.madproject.domain.mapper.toModeCode
 import com.example.madproject.domain.mapper.toOutcomeCode
 import java.util.UUID
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-enum class HandPhase { READY, PLAYER_TURN, DEALER_TURN, FINISHED }
+enum class HandPhase { READY, PLAYER_TURN, INSURANCE_DECISION, DEALER_TURN, FINISHED }
 
 data class GameUiState(
     val selectedMode: String = "BEGINNER",
@@ -48,9 +52,13 @@ data class GameUiState(
     val message: String = "Select a mode and press Deal",
     val phase: HandPhase = HandPhase.READY,
     val canDoubleDown: Boolean = false,
-    val canSplit: Boolean = false
+    val canSplit: Boolean = false,
+    val dealerHoleCard: Card? = null,
+    val insuranceOffered: Boolean = false,
+    val insuranceTaken: Boolean = false,
+    val insuranceBet: Int = 0,
+    val previousBaseBet: Int? = null
 )
-
 
 class GameViewModel(
     private val handRepository: HandRepository,
@@ -60,8 +68,7 @@ class GameViewModel(
     private val sessionManager: SessionManager
 ) : ViewModel() {
 
-    // ----- Dashboard filters -----
-    private val filterMode = MutableStateFlow<String?>(null) // null = ALL
+    private val filterMode = MutableStateFlow<String?>(null)
     private val sortAscending = MutableStateFlow(false)
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -71,13 +78,12 @@ class GameViewModel(
     fun setFilterMode(mode: String?) { filterMode.value = mode }
     fun setSortAscending(asc: Boolean) { sortAscending.value = asc }
 
-    // ----- Game state -----
     private val _state = MutableStateFlow(GameUiState())
     val state: StateFlow<GameUiState> = _state
 
     private var shoe: Shoe? = null
+    private val betHistory = mutableListOf<Int>()
 
-    // ----- Mode selection -----
     fun selectMode(mode: String) {
         viewModelScope.launch {
             val restored = restoreModeFromDb(mode)
@@ -111,34 +117,64 @@ class GameViewModel(
                 message = "Mode set: $mode. Press Deal.",
                 shoeLabel = shoeProgress(),
                 canDoubleDown = false,
-                canSplit = false
+                canSplit = false,
+                dealerHoleCard = null,
+                insuranceOffered = false,
+                insuranceTaken = false,
+                insuranceBet = 0
             )
 
             persistSnapshot()
         }
     }
 
-    fun betMinus5() {
+    private fun pushBetHistory(oldBet: Int) {
+        betHistory.add(oldBet)
+    }
+
+    private fun updateBaseBet(newBaseBet: Int) {
         val s = _state.value
-        val newBet = (s.baseBet - 5).coerceAtLeast(5)
+        val clamped = newBaseBet.coerceIn(5, s.balance.coerceAtLeast(5))
+        if (clamped == s.baseBet) return
+
+        pushBetHistory(s.baseBet)
+
         _state.value = s.copy(
-            bet = newBet,
-            baseBet = newBet
+            bet = clamped,
+            baseBet = clamped,
+            previousBaseBet = s.baseBet
         )
+
         viewModelScope.launch { persistSnapshot() }
+    }
+
+    fun betMinus5() {
+        updateBaseBet(_state.value.baseBet - 5)
     }
 
     fun betPlus5() {
+        updateBaseBet(_state.value.baseBet + 5)
+    }
+
+    fun betTimesTwo() {
+        updateBaseBet(_state.value.baseBet * 2)
+    }
+
+    fun betAllIn() {
+        updateBaseBet(_state.value.balance)
+    }
+
+    fun undoLastBetMove() {
+        val last = betHistory.removeLastOrNull() ?: return
         val s = _state.value
-        val newBet = (s.baseBet + 5).coerceAtMost(s.balance.coerceAtLeast(5))
         _state.value = s.copy(
-            bet = newBet,
-            baseBet = newBet
+            bet = last,
+            baseBet = last,
+            previousBaseBet = betHistory.lastOrNull()
         )
         viewModelScope.launch { persistSnapshot() }
     }
 
-    // ----- Core game actions -----
     fun deal() {
         val s = _state.value
 
@@ -159,34 +195,71 @@ class GameViewModel(
         val p1 = sh.draw().also { adjustCount(it) }
         val d1 = sh.draw().also { adjustCount(it) }
         val p2 = sh.draw().also { adjustCount(it) }
+        val d2 = sh.draw().also { adjustCount(it) }
 
         val player = listOf(p1, p2)
-        val dealer = listOf(d1)
+        val dealerUpCard = listOf(d1)
+        val insuranceAvailable = d1.rank.label == "A"
 
         _state.value = _state.value.copy(
             playerHands = listOf(player),
             activeHandIndex = 0,
             handBets = listOf(s.bet),
-            dealerCards = dealer,
-            phase = HandPhase.PLAYER_TURN,
-            message = "Your turn: Hit or Stand",
+            dealerCards = dealerUpCard,
+            dealerHoleCard = d2,
+            phase = if (insuranceAvailable) HandPhase.INSURANCE_DECISION else HandPhase.PLAYER_TURN,
+            message = if (insuranceAvailable) {
+                "Dealer shows Ace - take insurance?"
+            } else {
+                "Your turn: Hit or Stand"
+            },
             shoeLabel = shoeProgress(),
             dealtCount = sh.dealtCount,
             trueCount = calculateTrueCount(),
-            canDoubleDown = true,
-            canSplit = canSplitHand(player, s.balance, s.bet)
-            )
+            canDoubleDown = !insuranceAvailable,
+            canSplit = if (insuranceAvailable) false else canSplitHand(player, s.balance, s.bet),
+            insuranceOffered = insuranceAvailable,
+            insuranceTaken = false,
+            insuranceBet = 0
+        )
 
         viewModelScope.launch { persistSnapshot() }
 
         val playerTotal = handTotal(player)
-        if (playerTotal == 21) {
-            finishHand(
-                result = "BLACKJACK",
-                message = "Blackjack! Pays 3:2",
-                finalDealer = dealer,
-                finalPlayer = player
-            )
+        val dealerTotal = handTotal(listOf(d1, d2))
+        val playerBlackjack = playerTotal == 21
+        val dealerBlackjack = dealerTotal == 21
+
+        when {
+            playerBlackjack && dealerBlackjack -> {
+                finishHand(
+                    result = "PUSH",
+                    message = "Both have blackjack - Push",
+                    finalDealer = listOf(d1, d2),
+                    finalPlayer = player
+                )
+                return
+            }
+
+            playerBlackjack -> {
+                finishHand(
+                    result = "BLACKJACK",
+                    message = "Blackjack! Pays 3:2",
+                    finalDealer = listOf(d1, d2),
+                    finalPlayer = player
+                )
+                return
+            }
+
+            dealerBlackjack && !insuranceAvailable -> {
+                finishHand(
+                    result = "LOSE",
+                    message = "Dealer has blackjack.",
+                    finalDealer = listOf(d1, d2),
+                    finalPlayer = player
+                )
+                return
+            }
         }
     }
 
@@ -244,7 +317,6 @@ class GameViewModel(
         }
     }
 
-
     fun standDealerResolution() {
         val s = _state.value
         if (s.phase != HandPhase.PLAYER_TURN) return
@@ -258,24 +330,25 @@ class GameViewModel(
                 message = "Dealer's turn..."
             )
 
-            kotlinx.coroutines.delay(500)
+            delay(500)
 
-            // Reveal hole card
-            val holeCard = sh.draw().also { adjustCount(it) }
-            dealer = dealer + holeCard
+            val holeCard = s.dealerHoleCard
+            if (holeCard != null) {
+                dealer = dealer + holeCard
 
-            _state.value = _state.value.copy(
-                dealerCards = dealer,
-                dealtCount = sh.dealtCount,
-                trueCount = calculateTrueCount(),
-                shoeLabel = shoeProgress(),
-                message = "Dealer reveals hole card..."
-            )
+                _state.value = _state.value.copy(
+                    dealerCards = dealer,
+                    dealerHoleCard = null,
+                    dealtCount = sh.dealtCount,
+                    trueCount = calculateTrueCount(),
+                    shoeLabel = shoeProgress(),
+                    message = "Dealer reveals hole card..."
+                )
 
-            persistSnapshot()
-            kotlinx.coroutines.delay(800)
+                persistSnapshot()
+                delay(800)
+            }
 
-            // Dealer draws to 17
             while (handTotal(dealer) < 17) {
                 val nextCard = sh.draw().also { adjustCount(it) }
                 dealer = dealer + nextCard
@@ -289,7 +362,7 @@ class GameViewModel(
                 )
 
                 persistSnapshot()
-                kotlinx.coroutines.delay(800)
+                delay(800)
             }
 
             resolveAllHandsAgainstDealer(dealer)
@@ -361,7 +434,11 @@ class GameViewModel(
             dealtCount = shoe?.dealtCount ?: s.dealtCount,
             trueCount = calculateTrueCount(),
             canDoubleDown = false,
-            canSplit = false
+            canSplit = false,
+            dealerHoleCard = null,
+            insuranceOffered = false,
+            insuranceTaken = false,
+            insuranceBet = 0
         )
 
         viewModelScope.launch { persistSnapshot() }
@@ -439,7 +516,11 @@ class GameViewModel(
             dealtCount = shoe?.dealtCount ?: s.dealtCount,
             trueCount = calculateTrueCount(),
             canDoubleDown = false,
-            canSplit = false
+            canSplit = false,
+            dealerHoleCard = null,
+            insuranceOffered = false,
+            insuranceTaken = false,
+            insuranceBet = 0
         )
 
         viewModelScope.launch { persistSnapshot() }
@@ -569,6 +650,76 @@ class GameViewModel(
         viewModelScope.launch { persistSnapshot() }
     }
 
+    fun takeInsurance() {
+        val s = _state.value
+
+        if (s.phase != HandPhase.INSURANCE_DECISION) return
+        if (!s.insuranceOffered || s.insuranceTaken) return
+
+        val insuranceCost = (s.bet / 2).coerceAtLeast(1)
+
+        if (s.balance < insuranceCost) {
+            _state.value = s.copy(
+                message = "Not enough balance for insurance"
+            )
+            return
+        }
+
+        val dealerFullHand = s.dealerCards + listOfNotNull(s.dealerHoleCard)
+        val dealerHasBlackjack = handTotal(dealerFullHand) == 21
+
+        if (dealerHasBlackjack) {
+            _state.value = s.copy(
+                balance = s.balance - insuranceCost,
+                insuranceTaken = true,
+                insuranceBet = insuranceCost
+            )
+            finishHand(
+                result = "LOSE",
+                message = "Dealer has blackjack. Insurance pays 2:1.",
+                finalDealer = dealerFullHand,
+                finalPlayer = s.playerHands.first()
+            )
+        } else {
+            _state.value = s.copy(
+                balance = s.balance - insuranceCost,
+                insuranceTaken = true,
+                insuranceBet = insuranceCost,
+                phase = HandPhase.PLAYER_TURN,
+                message = "Insurance taken. Your turn: Hit or Stand",
+                canDoubleDown = true,
+                canSplit = canSplitHand(s.playerHands.first(), s.balance, s.bet)
+            )
+            viewModelScope.launch { persistSnapshot() }
+        }
+    }
+
+    fun skipInsurance() {
+        val s = _state.value
+
+        if (s.phase != HandPhase.INSURANCE_DECISION) return
+
+        val dealerFullHand = s.dealerCards + listOfNotNull(s.dealerHoleCard)
+        val dealerHasBlackjack = handTotal(dealerFullHand) == 21
+
+        if (dealerHasBlackjack) {
+            finishHand(
+                result = "LOSE",
+                message = "Dealer has blackjack.",
+                finalDealer = dealerFullHand,
+                finalPlayer = s.playerHands.first()
+            )
+        } else {
+            _state.value = s.copy(
+                phase = HandPhase.PLAYER_TURN,
+                message = "Your turn: Hit or Stand",
+                canDoubleDown = true,
+                canSplit = canSplitHand(s.playerHands.first(), s.balance, s.bet)
+            )
+            viewModelScope.launch { persistSnapshot() }
+        }
+    }
+
     fun stand() {
         val s = _state.value
         if (s.phase != HandPhase.PLAYER_TURN) return
@@ -620,7 +771,6 @@ class GameViewModel(
         val s = _state.value
 
         val handBet = s.bet
-
         val delta = when (result) {
             "WIN" -> handBet
             "LOSE" -> -handBet
@@ -628,7 +778,12 @@ class GameViewModel(
             else -> 0
         }
 
-        var newBalance = s.balance + delta
+        var insuranceDelta = 0
+        if (s.insuranceTaken && handTotal(finalDealer) == 21 && finalDealer.size == 2) {
+            insuranceDelta = s.insuranceBet * 3
+        }
+
+        var newBalance = s.balance + delta + insuranceDelta
         if (newBalance <= 0) newBalance = 100
 
         val pt = handTotal(finalPlayer)
@@ -657,7 +812,11 @@ class GameViewModel(
             dealtCount = shoe?.dealtCount ?: s.dealtCount,
             trueCount = calculateTrueCount(),
             canDoubleDown = false,
-            canSplit = false
+            canSplit = false,
+            dealerHoleCard = null,
+            insuranceOffered = false,
+            insuranceTaken = false,
+            insuranceBet = 0
         )
 
         viewModelScope.launch { persistSnapshot() }
@@ -762,7 +921,6 @@ class GameViewModel(
         }
     }
 
-
     private suspend fun restoreModeFromDb(mode: String): Boolean {
         val savedShoe = handRepository.getShoeState(mode) ?: return false
 
@@ -803,7 +961,9 @@ class GameViewModel(
             handBets = restoredBets,
             message = "Continuing saved ${savedShoe.selectedMode} game.",
             phase = HandPhase.valueOf(savedShoe.phase),
-            canDoubleDown = activeHand.size == 2 && savedShoe.phase == HandPhase.PLAYER_TURN.name && savedShoe.balance >= activeBet,
+            canDoubleDown = activeHand.size == 2 &&
+                    savedShoe.phase == HandPhase.PLAYER_TURN.name &&
+                    savedShoe.balance >= activeBet,
             canSplit = false
         )
 

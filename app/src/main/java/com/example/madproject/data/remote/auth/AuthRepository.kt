@@ -6,6 +6,12 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.serialization.Serializable
 
+@Serializable
+data class Profile(
+    val id: String,
+    val username: String,
+    val email: String
+)
 
 @Serializable
 data class ProfileInsert(
@@ -60,7 +66,42 @@ class AuthRepository {
         }
     }
 
+    suspend fun getProfile(): Result<Profile> {
+        return runCatching {
+            val userId = currentUserId() ?: error("No signed-in user.")
+
+            supabase.postgrest["profiles"]
+                .select {
+                    filter {
+                        eq("id", userId)
+                    }
+                }
+                .decodeSingle<Profile>()
+        }
+    }
+
+    suspend fun updateUsername(newUsername: String): Result<Profile> {
+        return runCatching {
+            val userId = currentUserId() ?: error("No signed-in user.")
+
+            supabase.postgrest["profiles"]
+                .update(
+                    {
+                        set("username", newUsername)
+                    }
+                ) {
+                    select()
+                    filter {
+                        eq("id", userId)
+                    }
+                }
+                .decodeSingle<Profile>()
+        }
+    }
+
     fun currentUserId(): String? = supabase.auth.currentUserOrNull()?.id
+
+    fun currentUserEmail(): String? = supabase.auth.currentUserOrNull()?.email
 
     fun isLoggedIn(): Boolean = supabase.auth.currentUserOrNull() != null
 }

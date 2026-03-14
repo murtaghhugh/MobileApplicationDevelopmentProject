@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -64,6 +65,13 @@ fun GameScreen(
 
     val activePlayerTotal =
         if (activeHand.isEmpty()) 0 else handTotal(activeHand)
+
+    val bettingEnabled = s.phase == HandPhase.READY || s.phase == HandPhase.FINISHED
+
+    val primaryButtonColors = ButtonDefaults.buttonColors(
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 
     Column(
         modifier = Modifier
@@ -132,11 +140,7 @@ fun GameScreen(
                         modifier = Modifier.padding(12.dp)
                     ) {
                         Text(
-                            text = if (isActive) {
-                                "Hand ${index + 1} (Active)"
-                            } else {
-                                "Hand ${index + 1}"
-                            },
+                            text = if (isActive) "Hand ${index + 1} (Active)" else "Hand ${index + 1}",
                             style = MaterialTheme.typography.titleMedium
                         )
                         Text("Bet: $handBet")
@@ -157,11 +161,43 @@ fun GameScreen(
         Spacer(Modifier.height(16.dp))
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = vm::betMinus5) {
+            OutlinedButton(
+                onClick = vm::betMinus5,
+                enabled = bettingEnabled
+            ) {
                 Text("-5")
             }
-            OutlinedButton(onClick = vm::betPlus5) {
+
+            OutlinedButton(
+                onClick = vm::betPlus5,
+                enabled = bettingEnabled
+            ) {
                 Text("+5")
+            }
+
+            OutlinedButton(
+                onClick = vm::betTimesTwo,
+                enabled = bettingEnabled
+            ) {
+                Text("x2")
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = vm::betAllIn,
+                enabled = bettingEnabled
+            ) {
+                Text("All In")
+            }
+
+            OutlinedButton(
+                onClick = vm::undoLastBetMove,
+                enabled = bettingEnabled && s.previousBaseBet != null
+            ) {
+                Text("Undo")
             }
         }
 
@@ -170,21 +206,24 @@ fun GameScreen(
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = vm::deal,
-                enabled = s.phase == HandPhase.READY || s.phase == HandPhase.FINISHED
+                enabled = s.phase == HandPhase.READY || s.phase == HandPhase.FINISHED,
+                colors = primaryButtonColors
             ) {
                 Text("Deal")
             }
 
             Button(
                 onClick = vm::hit,
-                enabled = s.phase == HandPhase.PLAYER_TURN && activePlayerTotal < 21
+                enabled = s.phase == HandPhase.PLAYER_TURN && activePlayerTotal < 21,
+                colors = primaryButtonColors
             ) {
                 Text("Hit")
             }
 
             Button(
                 onClick = vm::stand,
-                enabled = s.phase == HandPhase.PLAYER_TURN
+                enabled = s.phase == HandPhase.PLAYER_TURN,
+                colors = primaryButtonColors
             ) {
                 Text("Stand")
             }
@@ -197,14 +236,16 @@ fun GameScreen(
                 onClick = vm::doubleDown,
                 enabled = s.phase == HandPhase.PLAYER_TURN &&
                         s.canDoubleDown &&
-                        s.balance >= s.bet
+                        s.balance >= s.bet,
+                colors = primaryButtonColors
             ) {
                 Text("Double")
             }
 
             Button(
                 onClick = vm::split,
-                enabled = s.phase == HandPhase.PLAYER_TURN && s.canSplit
+                enabled = s.phase == HandPhase.PLAYER_TURN && s.canSplit,
+                colors = primaryButtonColors
             ) {
                 Text("Split")
             }

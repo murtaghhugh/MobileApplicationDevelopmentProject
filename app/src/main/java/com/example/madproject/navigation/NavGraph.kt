@@ -17,6 +17,7 @@ import com.example.madproject.ui.screens.home.HomeScreen
 import com.example.madproject.ui.screens.info.InfoScreen
 import com.example.madproject.ui.viewmodel.GameViewModel
 import com.example.madproject.ui.viewmodel.AuthViewModel
+import com.example.madproject.ui.screens.rules.RulesScreen
 
 @Composable
 fun AppNavGraph(
@@ -62,7 +63,8 @@ fun AppNavGraph(
                 onDashboard = { navController.navigate(Routes.DASHBOARD) },
                 onPlay = { navController.navigate(Routes.GAME_MODE) },
                 onTips = { navController.navigate(Routes.INFO) },
-                onAccount = { navController.navigate(Routes.ACCOUNT) }
+                onAccount = { navController.navigate(Routes.ACCOUNT) },
+                onRules = { navController.navigate(Routes.RULES) }
             )
         }
 
@@ -118,7 +120,18 @@ fun AppNavGraph(
         }
 
         composable(Routes.ACCOUNT) {
-            AccountScreen(onBack = { navController.popBackStack() })
+            AccountScreen(
+                onBack = { navController.popBackStack() },
+                onSignedOut = {
+                    navController.navigate(Routes.LOGIN) {
+                        popUpTo(0)
+                    }
+                }
+            )
+        }
+
+        composable(Routes.RULES) {
+            RulesScreen(onBack = { navController.popBackStack() })
         }
     }
 }
