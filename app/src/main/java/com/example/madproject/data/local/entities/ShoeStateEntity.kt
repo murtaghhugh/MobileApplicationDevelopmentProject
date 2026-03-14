@@ -13,6 +13,7 @@ data class ShoeStateEntity(
 
     val balance: Int,
     val bet: Int,
+    val baseBet: Int,
     val runningCount: Int,
     val shoeNumber: Int = 1,
 
@@ -22,7 +23,10 @@ data class ShoeStateEntity(
     val cardsCsv: String,
     val discardsCsv: String,
 
-    val playerCardsCsv: String,
+    val playerHandsCsv: String,
+    val activeHandIndex: Int,
+    val handBetsCsv: String,
+
     val dealerCardsCsv: String,
 
     val phase: String,

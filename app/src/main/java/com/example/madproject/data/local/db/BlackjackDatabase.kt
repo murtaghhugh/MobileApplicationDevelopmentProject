@@ -9,7 +9,7 @@ import com.example.madproject.data.local.entities.ShoeStateEntity
 
 @Database(
     entities = [HandEntity::class, ShoeStateEntity::class],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class BlackjackDatabase : RoomDatabase() {

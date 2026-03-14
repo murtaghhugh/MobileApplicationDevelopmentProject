@@ -1,81 +1,222 @@
-    package com.example.madproject.ui.screens.game
+package com.example.madproject.ui.screens.game
 
-    import androidx.compose.foundation.layout.*
-    import androidx.compose.material3.*
-    import androidx.compose.runtime.Composable
-    import androidx.compose.ui.Modifier
-    import androidx.compose.ui.unit.dp
-    import androidx.compose.runtime.collectAsState
-    import androidx.compose.runtime.getValue
-    import com.example.madproject.ui.viewmodel.GameViewModel
-    import com.example.madproject.ui.viewmodel.HandPhase
-    import com.example.madproject.core.game.handTotal
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import com.example.madproject.core.game.handTotal
+import com.example.madproject.ui.components.CardHandRow
+import com.example.madproject.ui.viewmodel.GameViewModel
+import com.example.madproject.ui.viewmodel.HandPhase
 
-    @Composable
-    fun GameScreen(
-        mode: String,
-        vm: GameViewModel,
-        onBack: () -> Unit
+@Composable
+fun GameScreen(
+    mode: String,
+    vm: GameViewModel,
+    onBack: () -> Unit
+) {
+    val s by vm.state.collectAsState()
+
+    val countSystem =
+        when (s.selectedMode.lowercase()) {
+            "beginner" -> "Hi-Lo"
+            "intermediate" -> "Hi-Lo"
+            "advanced" -> "Omega II"
+            else -> "Hi-Lo"
+        }
+
+    val trueCountDisplay =
+        if (s.trueCount >= 0) "+%.1f".format(s.trueCount)
+        else "%.1f".format(s.trueCount)
+
+    val showDealerFullHand =
+        s.phase == HandPhase.DEALER_TURN || s.phase == HandPhase.FINISHED
+
+    val dealerCardsToShow =
+        if (s.dealerCards.isEmpty()) emptyList()
+        else if (showDealerFullHand) s.dealerCards
+        else listOf(s.dealerCards.first())
+
+    val dealerVisibleTotal =
+        if (dealerCardsToShow.isEmpty()) 0 else handTotal(dealerCardsToShow)
+
+    val activeHand =
+        s.playerHands.getOrElse(s.activeHandIndex) { emptyList() }
+
+    val activePlayerTotal =
+        if (activeHand.isEmpty()) 0 else handTotal(activeHand)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
     ) {
-        val s by vm.state.collectAsState()
+        Text("Game", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(8.dp))
 
-        val dealerText =
-            if (s.dealerCards.isEmpty()) "—"
-            else if (s.phase == HandPhase.PLAYER_TURN) s.dealerCards.first().display()
-            else s.dealerCards.joinToString(" ") { it.display() }
+        Text("Mode: ${s.selectedMode}")
+        Text("Count System: $countSystem")
+        Text("Balance: ${s.balance}    Bet: ${s.bet}")
+        Text("Running Count: ${if (s.runningCount >= 0) "+${s.runningCount}" else s.runningCount}")
+        if (s.decks > 1) {
+            Text("True Count: $trueCountDisplay")
+        }
+        if (s.shoeLabel.isNotBlank()) {
+            Text(s.shoeLabel)
+        }
 
-        val playerText =
-            if (s.playerCards.isEmpty()) "—"
-            else s.playerCards.joinToString(" ") { it.display() }
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
 
-        val playerTotal = handTotal(s.playerCards)
+        Text("Dealer")
+        if (dealerCardsToShow.isNotEmpty()) {
+            CardHandRow(cards = dealerCardsToShow)
+            Spacer(Modifier.height(4.dp))
+            Text("Dealer Total: $dealerVisibleTotal")
+        } else {
+            Text("—")
+        }
 
-        Column(Modifier.fillMaxSize().padding(16.dp)) {
-            Text("Game", style = MaterialTheme.typography.headlineMedium)
+        Spacer(Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(Modifier.height(12.dp))
+
+        if (s.playerHands.isEmpty()) {
+            Text("You")
+            Text("—")
+        } else if (s.playerHands.size == 1) {
+            Text("You")
+            CardHandRow(cards = activeHand)
+            Spacer(Modifier.height(4.dp))
+            Text("Your Total: $activePlayerTotal")
+        } else {
+            Text("Your Hands")
             Spacer(Modifier.height(8.dp))
-            Text("Mode: ${s.selectedMode}")
-            Text("Balance: ${s.balance}    Bet: ${s.bet}")
-            Text("Hi-Lo Count: ${s.runningCount}")
-            if (s.shoeLabel.isNotBlank()) Text(s.shoeLabel)
 
-            Spacer(Modifier.height(16.dp))
-            HorizontalDivider()
-            Spacer(Modifier.height(12.dp))
+            s.playerHands.forEachIndexed { index, hand ->
+                val isActive = index == s.activeHandIndex
+                val handBet = s.handBets.getOrElse(index) { s.baseBet }
+                val handTotalValue = handTotal(hand)
 
-            Text("Dealer: $dealerText")
-            Text("You:    $playerText")
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    border = if (isActive) {
+                        BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+                    } else {
+                        BorderStroke(1.dp, Color.LightGray)
+                    },
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp)
+                    ) {
+                        Text(
+                            text = if (isActive) {
+                                "Hand ${index + 1} (Active)"
+                            } else {
+                                "Hand ${index + 1}"
+                            },
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Text("Bet: $handBet")
+                        Spacer(Modifier.height(6.dp))
+                        CardHandRow(cards = hand)
+                        Spacer(Modifier.height(6.dp))
+                        Text("Total: $handTotalValue")
+                    }
+                }
 
-            Spacer(Modifier.height(12.dp))
-            Text(s.message)
+                Spacer(Modifier.height(10.dp))
+            }
+        }
 
-            Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(8.dp))
+        Text(s.message)
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton(onClick = vm::betMinus5) { Text("-5") }
-                OutlinedButton(onClick = vm::betPlus5) { Text("+5") }
+        Spacer(Modifier.height(16.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = vm::betMinus5) {
+                Text("-5")
+            }
+            OutlinedButton(onClick = vm::betPlus5) {
+                Text("+5")
+            }
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = vm::deal,
+                enabled = s.phase == HandPhase.READY || s.phase == HandPhase.FINISHED
+            ) {
+                Text("Deal")
             }
 
-            Spacer(Modifier.height(12.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(
-                    onClick = vm::deal,
-                    enabled = s.phase != HandPhase.PLAYER_TURN
-                ) { Text("Deal") }
-
-                Button(
-                    onClick = vm::hit,
-                    enabled = s.phase == HandPhase.PLAYER_TURN && playerTotal < 21
-                ) { Text("Hit") }
-
-                Button(
-                    onClick = vm::stand,
-                    enabled = s.phase == HandPhase.PLAYER_TURN
-                ) { Text("Stand") }
+            Button(
+                onClick = vm::hit,
+                enabled = s.phase == HandPhase.PLAYER_TURN && activePlayerTotal < 21
+            ) {
+                Text("Hit")
             }
 
-            Spacer(Modifier.height(24.dp))
+            Button(
+                onClick = vm::stand,
+                enabled = s.phase == HandPhase.PLAYER_TURN
+            ) {
+                Text("Stand")
+            }
+        }
 
-            OutlinedButton(onClick = onBack, modifier = Modifier.fillMaxWidth()) { Text("Back") }
+        Spacer(Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+                onClick = vm::doubleDown,
+                enabled = s.phase == HandPhase.PLAYER_TURN &&
+                        s.canDoubleDown &&
+                        s.balance >= s.bet
+            ) {
+                Text("Double")
+            }
+
+            Button(
+                onClick = vm::split,
+                enabled = s.phase == HandPhase.PLAYER_TURN && s.canSplit
+            ) {
+                Text("Split")
+            }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        OutlinedButton(
+            onClick = onBack,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("Back")
         }
     }
+}

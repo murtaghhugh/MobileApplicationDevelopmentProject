@@ -11,10 +11,19 @@ enum class Rank(val label: String, val pipValue: Int) {
 }
 
 data class Card(val suit: Suit, val rank: Rank) {
+
     val hiLoValue: Int = when (rank) {
         Rank.TWO, Rank.THREE, Rank.FOUR, Rank.FIVE, Rank.SIX -> +1
         Rank.SEVEN, Rank.EIGHT, Rank.NINE -> 0
         else -> -1 // TEN/J/Q/K/A
+    }
+
+    val omegaIiValue: Int = when (rank) {
+        Rank.TWO, Rank.THREE, Rank.SEVEN -> +1
+        Rank.FOUR, Rank.FIVE, Rank.SIX -> +2
+        Rank.NINE -> -1
+        Rank.TEN, Rank.J, Rank.Q, Rank.K -> -2
+        Rank.EIGHT, Rank.A -> 0
     }
 
     fun display(): String {
